@@ -99,7 +99,8 @@ angular.module('dockership').controller(
         };
 
         $scope.openDeploy = function (project, environment) {
-             var modalInstance = $modal.open({
+            socket.doDeploy(project, environment)
+            var modalInstance = $modal.open({
                 templateUrl: 'DeployContent.html',
                 controller: 'DeployCtrl',
                 size: 'lg',
@@ -237,6 +238,16 @@ angular.module('dockership').factory('socket', function (socketFactory) {
     socket._handlers = {};
     socket.addHandler = function(name, handler) {
         socket._handlers[name] = handler;
+    };
+
+    socket.doDeploy = function(project, environment) {
+        socket.send(angular.toJson({
+            event: 'deploy',
+            request: {
+                project: project.Name,
+                environment: environment.Name
+            }
+        }))
     };
 
     socket.getContainers = function(project) {

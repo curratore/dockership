@@ -69,6 +69,7 @@ func (s *SockJS) AddSessionAndRead(session sockjs.Session) {
 func (s *SockJS) Read(session sockjs.Session) {
 	for {
 		if raw, err := session.Recv(); err == nil {
+			fmt.Println(raw)
 			s.handleMessage(raw, session)
 		} else {
 			break

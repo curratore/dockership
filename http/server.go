@@ -41,14 +41,12 @@ func (s *server) configure() {
 
 	s.sockjs.AddHandler("containers", s.HandleContainers)
 	s.sockjs.AddHandler("status", s.HandleStatus)
+	s.sockjs.AddHandler("deploy", s.HandleDeploy)
 
 	// socket
 	s.mux.Path("/socket/{any:.*}").Handler(sockjs.NewHandler("/socket", sockjs.DefaultOptions, func(session sockjs.Session) {
 		s.sockjs.AddSessionAndRead(session)
 	}))
-
-	// deploy
-	s.mux.Path("/rest/deploy/{project:.*}/{environment:.*}").Methods("GET").HandlerFunc(s.HandleDeploy)
 
 	// logged-user
 	s.mux.Path("/rest/user").Methods("GET").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
