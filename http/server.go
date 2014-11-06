@@ -5,12 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/mcuadros/dockership/config"
 	"github.com/mcuadros/dockership/core"
 
-	"github.com/googollee/go-socket.io"
 	"github.com/gorilla/mux"
+	"gopkg.in/igm/sockjs-go.v2/sockjs"
 )
 
 var configFile string
@@ -29,34 +30,21 @@ func Start(version, build string) {
 
 type server struct {
 	serverId string
-	socketio *socketio.Server
 	mux      *mux.Router
 	oauth    *OAuth
 	config   config.Config
 }
 
 func (s *server) configure() {
+	sjs := NewSockJSWriter()
+	subscribeWriteToEvents(sjs)
+
 	s.mux = mux.NewRouter()
 
-	var err error
-	s.socketio, err = socketio.NewServer(nil)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	s.socketio.On("connection", func(so socketio.Socket) {
-		if err := so.Join("deploy"); err != nil {
-			fmt.Println(err)
-		}
-
-		fmt.Println(so.Rooms())
-	})
-
-	s.socketio.On("error", func(so socketio.Socket, err error) {
-		fmt.Println("error")
-	})
-
-	s.mux.Path("/socket.io/").Handler(s.socketio)
+	// socket
+	s.mux.Path("/socket/{any:.*}").Handler(sockjs.NewHandler("/socket", sockjs.DefaultOptions, func(session sockjs.Session) {
+		sjs.AddSessionAndRead(session)
+	}))
 
 	// status
 	s.mux.Path("/rest/status").Methods("GET").HandlerFunc(s.HandleStatus)
@@ -106,10 +94,6 @@ func (s *server) readConfig(configFile string) {
 }
 
 func (s *server) run() {
-	writer := NewSocketioWriter(s.socketio, "deploy", "log")
-	subs := subscribeWriteToEvents(writer)
-	defer unsubscribeEvents(subs)
-
 	core.Info("HTTP server running", "host:port", s.config.HTTP.Listen)
 	if err := http.ListenAndServe(s.config.HTTP.Listen, s); err != nil {
 		panic(err)
@@ -130,21 +114,46 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type SocketioWriter struct {
-	socketio *socketio.Server
-	room     string
-	message  string
+type SockJSWriter struct {
+	sessions []sockjs.Session
+	sync.Mutex
 }
 
-func NewSocketioWriter(socketio *socketio.Server, room, message string) *SocketioWriter {
-	return &SocketioWriter{
-		socketio: socketio,
-		room:     room,
-		message:  message,
+func NewSockJSWriter() *SockJSWriter {
+	return &SockJSWriter{
+		sessions: make([]sockjs.Session, 0),
 	}
 }
 
-func (s *SocketioWriter) Write(p []byte) (int, error) {
-	s.socketio.BroadcastTo(s.room, s.message, string(p))
+func (s *SockJSWriter) Write(p []byte) (int, error) {
+	data := fmt.Sprintf("{\"name\":\"log\", \"result\":%s}", p)
+	s.Send(data)
+
 	return len(p), nil
+}
+
+func (s *SockJSWriter) Send(data string) {
+	for _, session := range s.sessions {
+		session.Send(data)
+	}
+}
+
+func (s *SockJSWriter) AddSessionAndRead(session sockjs.Session) {
+	s.Lock()
+	s.sessions = append(s.sessions, session)
+	s.Unlock()
+
+	s.Read(session)
+}
+
+func (s *SockJSWriter) Read(session sockjs.Session) {
+	for {
+		if msg, err := session.Recv(); err == nil {
+			if session.Send(msg) != nil {
+				break
+			}
+		} else {
+			break
+		}
+	}
 }
