@@ -1,7 +1,7 @@
 package http
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/mcuadros/dockership/core"
@@ -10,16 +10,7 @@ import (
 )
 
 func (s *server) HandleDeploy(msg Message, session sockjs.Session) {
-
-	//writer := NewSocketioWriter(s.socketio, "deploy", "foo")
-
-	//subs := subscribeWriteToEvents(writer)
-	//defer unsubscribeEvents(subs)
-
-	writer := bytes.NewBuffer([]byte(""))
 	force := true
-
-	fmt.Println(msg.Request)
 	project, ok := msg.Request["project"]
 	if !ok {
 		core.Error("Missing project", "request", "deploy")
@@ -32,8 +23,22 @@ func (s *server) HandleDeploy(msg Message, session sockjs.Session) {
 		return
 	}
 
+	writer := NewSockJSWriter(s.sockjs, "deploy")
+	writer.SetFormater(func(raw []byte) []byte {
+		data, _ := json.Marshal(string(raw))
+		str := fmt.Sprintf(
+			"{\"environment\":\"%s\", \"project\":\"%s\", \"log\":%s}",
+			environment,
+			project,
+			data,
+		)
+
+		return []byte(str)
+	})
+
 	if p, ok := s.config.Projects[project]; ok {
 		core.Info("Starting deploy", "project", p, "environment", environment, "force", force)
+
 		err := p.Deploy(environment, writer, force)
 		if len(err) != 0 {
 			for _, e := range err {

@@ -36,7 +36,7 @@ type server struct {
 }
 
 func (s *server) configure() {
-	s.sockjs = NewSockJS("log")
+	s.sockjs = NewSockJS()
 	s.mux = mux.NewRouter()
 
 	s.sockjs.AddHandler("containers", s.HandleContainers)
@@ -85,6 +85,10 @@ func (s *server) readConfig(configFile string) {
 }
 
 func (s *server) run() {
+	writer := NewSockJSWriter(s.sockjs, "log")
+	subs := subscribeWriteToEvents(writer)
+	defer unsubscribeEvents(subs)
+
 	core.Info("HTTP server running", "host:port", s.config.HTTP.Listen)
 	if err := http.ListenAndServe(s.config.HTTP.Listen, s); err != nil {
 		panic(err)
