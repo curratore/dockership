@@ -3,7 +3,6 @@ package http
 import (
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/mcuadros/dockership/core"
 
@@ -11,12 +10,10 @@ import (
 )
 
 func (s *server) HandleDeploy(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	writer := NewAutoFlusherWriter(w, 100*time.Millisecond)
-	defer writer.Close()
+	writer := NewSocketioWriter(s.socketio, "deploy", "log")
 
-	subs := subscribeWriteToEvents(writer)
-	defer unsubscribeEvents(subs)
+	//subs := subscribeWriteToEvents(writer)
+	//defer unsubscribeEvents(subs)
 
 	force := true
 	vars := mux.Vars(r)
@@ -25,7 +22,7 @@ func (s *server) HandleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	if p, ok := s.config.Projects[project]; ok {
 		core.Info("Starting deploy", "project", p, "environment", environment, "force", force)
-		err := p.Deploy(environment, force)
+		err := p.Deploy(environment, writer, force)
 		if len(err) != 0 {
 			for _, e := range err {
 				core.Critical(e.Error(), "project", project)

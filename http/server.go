@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/mcuadros/dockership/config"
 	"github.com/mcuadros/dockership/core"
 
+	"github.com/googollee/go-socket.io"
 	"github.com/gorilla/mux"
 )
 
@@ -29,6 +29,7 @@ func Start(version, build string) {
 
 type server struct {
 	serverId string
+	socketio *socketio.Server
 	mux      *mux.Router
 	oauth    *OAuth
 	config   config.Config
@@ -36,6 +37,23 @@ type server struct {
 
 func (s *server) configure() {
 	s.mux = mux.NewRouter()
+
+	var err error
+	s.socketio, err = socketio.NewServer(nil)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	s.socketio.On("connection", func(so socketio.Socket) {
+		so.Join("deploy")
+		fmt.Println("hola")
+	})
+
+	s.socketio.On("error", func(so socketio.Socket, err error) {
+		fmt.Println("error")
+	})
+
+	s.mux.Path("/socket.io/").Handler(s.socketio)
 
 	// status
 	s.mux.Path("/rest/status").Methods("GET").HandlerFunc(s.HandleStatus)
@@ -105,49 +123,21 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// AutoFlusherWrite
-type AutoFlusherWriter struct {
-	writer     http.ResponseWriter
-	autoFlush  *time.Ticker
-	closeChan  chan bool
-	closedChan chan bool
+type SocketioWriter struct {
+	socketio *socketio.Server
+	room     string
+	message  string
 }
 
-func NewAutoFlusherWriter(writer http.ResponseWriter, duration time.Duration) *AutoFlusherWriter {
-	a := &AutoFlusherWriter{
-		writer:     writer,
-		autoFlush:  time.NewTicker(duration),
-		closeChan:  make(chan bool),
-		closedChan: make(chan bool),
-	}
-
-	go a.loop()
-	return a
-}
-
-func (a *AutoFlusherWriter) loop() {
-	for {
-		select {
-		case <-a.autoFlush.C:
-			a.writer.(http.Flusher).Flush()
-		case <-a.closeChan:
-			a.writer.(http.Flusher).Flush()
-			close(a.closedChan)
-			return
-		}
+func NewSocketioWriter(socketio *socketio.Server, room, message string) *SocketioWriter {
+	return &SocketioWriter{
+		socketio: socketio,
+		room:     room,
+		message:  message,
 	}
 }
 
-func (a *AutoFlusherWriter) Write(p []byte) (int, error) {
-	return a.writer.Write(p)
-}
-
-func (a *AutoFlusherWriter) Close() {
-	for {
-		select {
-		case a.closeChan <- true:
-		case <-a.closedChan:
-			return
-		}
-	}
+func (s *SocketioWriter) Write(p []byte) (int, error) {
+	s.socketio.BroadcastTo(s.room, s.message, string(p))
+	return len(p), nil
 }
