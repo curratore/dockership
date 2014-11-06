@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 
@@ -10,11 +11,12 @@ import (
 )
 
 func (s *server) HandleDeploy(w http.ResponseWriter, r *http.Request) {
-	writer := NewSocketioWriter(s.socketio, "deploy", "log")
+	//writer := NewSocketioWriter(s.socketio, "deploy", "foo")
 
 	//subs := subscribeWriteToEvents(writer)
 	//defer unsubscribeEvents(subs)
 
+	writer := bytes.NewBuffer([]byte(""))
 	force := true
 	vars := mux.Vars(r)
 	project := vars["project"]

@@ -90,18 +90,13 @@
 <br/>
 <br/>
 
-      <div ng-controller="TabsParentController" class="container">
+      <div class="container">
         <tabset>
-          <tab ng-repeat="workspace in workspaces"
-               heading="{{workspace.name}}"
-               active=workspace.active>
-
-            <div ng-controller="MainCtrl" ng-if="workspace.ctrl =='MainCtrl'" id="main">
-              <ng-include src="workspace.template"></ng-include>
-            </div>
-            <div ng-controller="DeployCtrl" ng-if="workspace.ctrl =='DeployCtrl'" id="main">
-              <ng-include src="workspace.template"></ng-include>
-            </div>
+          <tab ng-controller="MainCtrl" heading="Projects">
+              <ng-include src="'ProjectListTab.html'"></ng-include>
+          </tab>
+          <tab ng-controller="LogTabCtrl" heading="Log" >
+              <ng-include src="'LogTab.html'"></ng-include>
           </tab>
           <tab select="addWorkspace()">
               <tab-heading>
@@ -111,8 +106,40 @@
         </tabset>
       </div>
 
-
-    <script type="text/ng-template" id="ProjectList.html">
+    <script type="text/ng-template" id="LogTab.html">
+      <table class="table">
+        <thead>
+          <tr>
+            <th class="col-md-1">Level</th>
+            <th class="col-md-2">Time</th>
+            <th class="col-md-6">Message</th>
+            <th class="col-md-3">Params</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr ng-repeat='line in log track by $index'>
+            <td>
+                <span class="label label-danger" ng-if="line.lvl == 0">Critical</span>
+                <span class="label label-danger" ng-if="line.lvl == 1">Error</span>
+                <span class="label label-warning" ng-if="line.lvl == 2">Warning</span>
+                <span class="label label-info" ng-if="line.lvl == 3">Info</span>
+                <span class="label label-default" ng-if="line.lvl == 4">Debug</span>
+            </td>
+            <td><small>{{line.t.slice(0,19)}}</small></td>
+            <td><b>{{line.msg}}</b></td>
+            <td>
+              <span
+                popover-title="Params" data-html='true'
+                popover="{{params(line)}}"
+                popover-trigger="mouseenter"
+                popover-append-to-body="1"
+                class="label label-default">{{params(line, true)}}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </script>
+    <script type="text/ng-template" id="ProjectListTab.html">
       <div ng-repeat='p in groups'>
         <div class="row project">
           <h3 class="col-md-4">{{p.Project.Name}}</h3>

@@ -45,8 +45,11 @@ func (s *server) configure() {
 	}
 
 	s.socketio.On("connection", func(so socketio.Socket) {
-		so.Join("deploy")
-		fmt.Println("hola")
+		if err := so.Join("deploy"); err != nil {
+			fmt.Println(err)
+		}
+
+		fmt.Println(so.Rooms())
 	})
 
 	s.socketio.On("error", func(so socketio.Socket, err error) {
@@ -103,6 +106,10 @@ func (s *server) readConfig(configFile string) {
 }
 
 func (s *server) run() {
+	writer := NewSocketioWriter(s.socketio, "deploy", "log")
+	subs := subscribeWriteToEvents(writer)
+	defer unsubscribeEvents(subs)
+
 	core.Info("HTTP server running", "host:port", s.config.HTTP.Listen)
 	if err := http.ListenAndServe(s.config.HTTP.Listen, s); err != nil {
 		panic(err)

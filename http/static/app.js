@@ -1,4 +1,8 @@
-angular.module('dockership', ['ui.bootstrap', 'angular-loading-bar', 'ansiToHtml', 'ngAnimate', 'btford.socket-io', 'headroom']);
+angular.module('dockership', [
+    'ui.bootstrap', 'angular-loading-bar', 'ansiToHtml', 'ngAnimate',
+    'btford.socket-io', 'headroom'
+]);
+
 angular.module('dockership').controller(
     'TabsParentController', function ($scope, $window) {
         var setAllInactive = function() {
@@ -19,7 +23,8 @@ angular.module('dockership').controller(
         };
 
         $scope.workspaces = [{
-            name: 'List', active:true, template: 'ProjectList.html', ctrl: 'MainCtrl'
+            name: 'List', active:true, ctrl: 'MainCtrl',
+            name: 'Log', active:false, ctrl: 'LogTabCtrl'
         }];
 
         $scope.addWorkspace = function () {
@@ -29,10 +34,24 @@ angular.module('dockership').controller(
     }
 );
 
+angular.module('dockership').controller(
+    'LogTabCtrl',
+    function ($scope, socket, ansi2html) {
+        console.log(socket);
+        $scope.log = [];
+        socket.forward('log', $scope);
+        $scope.$on('socket:log', function (ev, data) {
+            console.log(data);
+            $scope.log.push(angular.fromJson(data[0]));
+        });
+
+    }
+);
+
 
 angular.module('dockership').controller(
     'MainCtrl',
-    function ($scope, $http, $modal, $log, socket) {
+    function ($scope, $http, $modal, $log) {
         'use strict';
         $scope.processing = false;
         $scope.openContainers = function (project) {
@@ -142,15 +161,15 @@ angular.module('dockership').controller(
 
 angular.module('dockership').controller(
     'DeployCtrl',
-    function ($scope, $http, socket, ansi2html, project, environment, loadStatus) {
+    function ($scope, $http, ansi2html, project, environment, loadStatus) {
         $scope.project = project;
         $scope.environment = environment;
         $scope.log = ""
 
-        socket.on('log', function (msg) {
+       /* socket.on('deploy', function (msg) {
             $scope.log += ansi2html.toHtml(msg)
         });
-
+*/
         $http.get('/rest/deploy/' + project.Project.Name + '/' + environment.Name).then(function(res) {
             console.log("done");
         }, function(msg) {
@@ -196,7 +215,9 @@ angular.module('dockership').service('oboe', [
 ]);
 
 angular.module('dockership').factory('socket', function (socketFactory) {
-  return socketFactory();
+  var socket = socketFactory();
+  socket.forward('log');
+  return socket;
 });
 
 angular.module('dockership').filter('unsafe', ['$sce', function ($sce) {
